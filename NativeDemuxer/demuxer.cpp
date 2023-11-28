@@ -81,16 +81,14 @@ void demuxer::read_frame() const
     static int width, height;
     static AVPixelFormat pix_fmt;
     static int video_dst_bufsize;
-    static uint8_t* video_dst_data[4] = {NULL};
+    static uint8_t* video_dst_data[4] = {nullptr};
     static int video_dst_linesize[4];
 
     if (open_codec_context(&video_stream_idx, &video_dec_ctx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0)
     {
         video_stream = fmt_ctx->streams[video_stream_idx];
 
-        // video_dst_file = fopen(video_dst_name_, "wb");
-        fopen_s(&video_dst_file, video_dst_name_, "wb");
-        if (!video_dst_file)
+        if (fopen_s(&video_dst_file, video_dst_name_, "wb"))
         {
             fprintf(stderr, "Could not open destination file %s\n", video_dst_name_);
             exit(1);
@@ -112,12 +110,10 @@ void demuxer::read_frame() const
     if (open_codec_context(&audio_stream_idx, &audio_dec_ctx, fmt_ctx, AVMEDIA_TYPE_AUDIO) >= 0)
     {
         audio_stream = fmt_ctx->streams[audio_stream_idx];
-        // audio_dst_file = fopen(audio_dst_name_, "wb");
-        fopen_s(&audio_dst_file, audio_dst_name_, "wb");
-        if (!audio_dst_file)
+
+        if (fopen_s(&audio_dst_file, audio_dst_name_, "wb"))
         {
             fprintf(stderr, "Could not open destination file %s\n", audio_dst_name_);
-            ret = 1;
             exit(1);
         }
     }
@@ -128,7 +124,6 @@ void demuxer::read_frame() const
     if (!audio_stream && !video_stream)
     {
         fprintf(stderr, "Could not find audio or video stream in the input, aborting\n");
-        ret = 1;
         exit(1);
     }
 
@@ -136,7 +131,6 @@ void demuxer::read_frame() const
     if (!frame)
     {
         fprintf(stderr, "Could not allocate frame\n");
-        ret = AVERROR(ENOMEM);
         exit(1);
     }
 
@@ -144,7 +138,6 @@ void demuxer::read_frame() const
     if (!pkt)
     {
         fprintf(stderr, "Could not allocate packet\n");
-        ret = AVERROR(ENOMEM);
         exit(1);
     }
 
@@ -169,9 +162,9 @@ void demuxer::read_frame() const
 
     /* flush the decoders */
     if (video_dec_ctx)
-        decode_packet(video_dec_ctx, NULL, frame, width, height, pix_fmt, video_dst_data, video_dst_linesize, video_dst_bufsize, video_dst_file, audio_dst_file);
+        decode_packet(video_dec_ctx, nullptr, frame, width, height, pix_fmt, video_dst_data, video_dst_linesize, video_dst_bufsize, video_dst_file, audio_dst_file);
     if (audio_dec_ctx)
-        decode_packet(audio_dec_ctx, NULL, frame, width, height, pix_fmt, video_dst_data, video_dst_linesize, video_dst_bufsize, video_dst_file, audio_dst_file);
+        decode_packet(audio_dec_ctx, nullptr, frame, width, height, pix_fmt, video_dst_data, video_dst_linesize, video_dst_bufsize, video_dst_file, audio_dst_file);
 
     printf("Demuxing succeeded.\n");
 
@@ -185,7 +178,7 @@ void demuxer::read_frame() const
 
     if (audio_stream)
     {
-        enum AVSampleFormat sfmt = audio_dec_ctx->sample_fmt;
+        AVSampleFormat sfmt = audio_dec_ctx->sample_fmt;
         int n_channels = audio_dec_ctx->ch_layout.nb_channels;
         const char* fmt;
 
@@ -237,10 +230,8 @@ int demuxer::read_packet(void* opaque, uint8_t* buf, const int buf_size)
 
 int demuxer::decode_packet(AVCodecContext* dec, const AVPacket* pkt, AVFrame* frame, int width, int height, AVPixelFormat pix_fmt, uint8_t* video_dst_data[4], int video_dst_linesize[4], int video_dst_bufsize, FILE* video_dst_file, FILE* audio_dst_file)
 {
-    int ret = 0;
-
     // submit the packet to the decoder
-    ret = avcodec_send_packet(dec, pkt);
+    int ret = avcodec_send_packet(dec, pkt);
     if (ret < 0)
     {
         fprintf(stderr, "Error submitting a packet for decoding (%s)\n", "");
@@ -281,7 +272,7 @@ int demuxer::open_codec_context(int* stream_idx, AVCodecContext** dec_ctx, AVFor
     int ret, stream_index;
     AVStream* st;
 
-    ret = av_find_best_stream(fmt_ctx, type, -1, -1, NULL, 0);
+    ret = av_find_best_stream(fmt_ctx, type, -1, -1, nullptr, 0);
     if (ret < 0)
     {
         fprintf(stderr, "Could not find %s stream in input file\n", av_get_media_type_string(type));
@@ -319,7 +310,7 @@ int demuxer::open_codec_context(int* stream_idx, AVCodecContext** dec_ctx, AVFor
         }
 
         /* Init the decoders */
-        if ((ret = avcodec_open2(*dec_ctx, dec, NULL)) < 0)
+        if ((ret = avcodec_open2(*dec_ctx, dec, nullptr)) < 0)
         {
             fprintf(stderr, "Failed to open %s codec\n",
                 av_get_media_type_string(type));
@@ -331,8 +322,7 @@ int demuxer::open_codec_context(int* stream_idx, AVCodecContext** dec_ctx, AVFor
     return 0;
 }
 
-int demuxer::get_format_from_sample_fmt(const char** fmt,
-    enum AVSampleFormat sample_fmt)
+int demuxer::get_format_from_sample_fmt(const char** fmt, AVSampleFormat sample_fmt)
 {
     int i;
     struct sample_fmt_entry
@@ -346,7 +336,7 @@ int demuxer::get_format_from_sample_fmt(const char** fmt,
             {AV_SAMPLE_FMT_FLT, "f32be", "f32le"},
             {AV_SAMPLE_FMT_DBL, "f64be", "f64le"},
         };
-    *fmt = NULL;
+    *fmt = nullptr;
 
     for (i = 0; i < FF_ARRAY_ELEMS(sample_fmt_entries); i++)
     {
@@ -395,16 +385,6 @@ int demuxer::output_video_frame(AVFrame* frame, int width, int height, AVPixelFo
 int demuxer::output_audio_frame(AVFrame* frame, FILE* audio_dst_file)
 {
     size_t unpadded_linesize = frame->nb_samples * av_get_bytes_per_sample((AVSampleFormat)frame->format);
-
-    /* Write the raw audio data samples of the first plane. This works
-     * fine for packed formats (e.g. AV_SAMPLE_FMT_S16). However,
-     * most audio decoders output planar audio, which uses a separate
-     * plane of audio samples for each channel (e.g. AV_SAMPLE_FMT_S16P).
-     * In other words, this code will write only the first audio channel
-     * in these cases.
-     * You should use libswresample or libavfilter to convert the frame
-     * to packed data. */
     fwrite(frame->extended_data[0], 1, unpadded_linesize, audio_dst_file);
-
     return 0;
 }
