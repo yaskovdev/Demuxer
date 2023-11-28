@@ -6,6 +6,7 @@ public class Demuxer : IDemuxer, IDisposable
 
     public void WritePacket(byte[] packet)
     {
+        NativeDemuxerApi.WritePacket(_demuxer, packet, packet.Length);
     }
 
     public byte[] ReadFrame()

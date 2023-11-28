@@ -12,6 +12,8 @@ class demuxer
 public:
     demuxer();
 
+    void write_packet(const uint8_t* packet, int packet_length);
+
     void read_frame() const;
 
     ~demuxer();
@@ -19,7 +21,6 @@ public:
 private:
     uint8_t* buffer_;
     size_t buffer_size_;
-    const char* file_name_;
     const char* audio_dst_name_;
     const char* video_dst_name_;
 

@@ -15,19 +15,27 @@ struct buffer_data
     size_t size;
 };
 
-demuxer::demuxer(): buffer_size_(4096), file_name_(R"(c:\dev\experiment3\capture.webm)"), audio_dst_name_(R"(c:\dev\experiment3\capture.audio)"), video_dst_name_(R"(c:\dev\experiment3\capture.video)")
+demuxer::demuxer(): buffer_(nullptr), buffer_size_(0), audio_dst_name_(R"(c:\dev\experiment3\capture.audio)"), video_dst_name_(R"(c:\dev\experiment3\capture.video)")
 {
-    const int result = av_file_map(file_name_, &buffer_, &buffer_size_, 0, nullptr);
-    std::cout << "Demuxer created with result " << result << "\n";
+    std::cout << "Demuxer created" << "\n";
+}
+
+void demuxer::write_packet(const uint8_t* packet, const int packet_length)
+{
+    std::cout << "Writing source packet of length " << packet_length << "\n";
+    buffer_ = new uint8_t[packet_length];
+    buffer_size_ = packet_length;
+    memcpy(buffer_, packet, buffer_size_);
 }
 
 void demuxer::read_frame() const
 {
-    buffer_data bd = {buffer_, buffer_size_};
+    buffer_data source_buffer = {buffer_, buffer_size_};
     AVFormatContext* fmt_ctx = avformat_alloc_context();
     std::cout << "Allocated format context " << fmt_ctx << "\n";
 
-    const auto io_ctx_buffer = static_cast<uint8_t*>(av_malloc(buffer_size_));
+    constexpr size_t io_ctx_buffer_size = 4096;
+    const auto io_ctx_buffer = static_cast<uint8_t*>(av_malloc(io_ctx_buffer_size));
     if (io_ctx_buffer)
     {
         std::cout << "Allocated context buffer " << io_ctx_buffer << "\n";
@@ -37,7 +45,7 @@ void demuxer::read_frame() const
         exit(1);
     }
 
-    AVIOContext* io_ctx = avio_alloc_context(io_ctx_buffer, buffer_size_, 0, &bd, &read_packet, nullptr, nullptr);
+    AVIOContext* io_ctx = avio_alloc_context(io_ctx_buffer, io_ctx_buffer_size, 0, &source_buffer, &read_packet, nullptr, nullptr);
 
     if (io_ctx)
     {
@@ -90,7 +98,7 @@ void demuxer::read_frame() const
 
         if (fopen_s(&video_dst_file, video_dst_name_, "wb"))
         {
-            fprintf(stderr, "Could not open destination file %s\n", video_dst_name_);
+            std::cerr << "Could not open destination file " << video_dst_name_ << "\n";
             exit(1);
         }
 
@@ -119,7 +127,7 @@ void demuxer::read_frame() const
     }
 
     /* dump input information to stderr */
-    av_dump_format(fmt_ctx, 0, file_name_, 0);
+    av_dump_format(fmt_ctx, 0, nullptr, 0);
 
     if (!audio_stream && !video_stream)
     {
@@ -205,7 +213,7 @@ void demuxer::read_frame() const
 demuxer::~demuxer()
 {
     std::cout << "Demuxer destructor called" << "\n";
-    av_file_unmap(buffer_, buffer_size_);
+    delete[] buffer_;
 }
 
 int demuxer::read_packet(void* opaque, uint8_t* buf, const int buf_size)
