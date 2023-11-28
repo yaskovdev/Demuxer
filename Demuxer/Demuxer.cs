@@ -8,7 +8,11 @@ public class Demuxer : IDemuxer, IDisposable
     {
     }
 
-    public byte[] ReadFrame() => Array.Empty<byte>();
+    public byte[] ReadFrame()
+    {
+        NativeDemuxerApi.ReadFrame(_demuxer);
+        return Array.Empty<byte>();
+    }
 
     public void Dispose()
     {
