@@ -50,12 +50,14 @@ void demuxer::read_frame() const
 
     fmt_ctx->pb = io_ctx;
 
-    if (avformat_open_input(&fmt_ctx, nullptr, nullptr, nullptr) >= 0)
+    const int open_input_res = avformat_open_input(&fmt_ctx, nullptr, nullptr, nullptr);
+    if (open_input_res >= 0)
     {
         std::cout << "Opened input" << "\n";
     }
     else
     {
+        std::cout << "Cannot opened input, result is " << (open_input_res == AVERROR_INVALIDDATA) << "\n";
         exit(1);
     }
 

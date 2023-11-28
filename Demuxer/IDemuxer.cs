@@ -2,7 +2,7 @@
 
 public interface IDemuxer
 {
-    void WriteMedia(byte[] data);
+    void WritePacket(byte[] packet);
 
     byte[] ReadFrame();
 }

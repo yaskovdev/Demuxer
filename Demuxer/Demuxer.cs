@@ -4,7 +4,7 @@ public class Demuxer : IDemuxer, IDisposable
 {
     private readonly IntPtr _demuxer = NativeDemuxerApi.CreateDemuxer();
 
-    public void WriteMedia(byte[] data)
+    public void WritePacket(byte[] packet)
     {
     }
 
