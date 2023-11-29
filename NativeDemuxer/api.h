@@ -1,10 +1,11 @@
 #pragma once
 
 #include "demuxer.h"
+#include "callback.h"
 
-extern "C" __declspec(dllexport) demuxer* create_demuxer();
+extern "C" __declspec(dllexport) demuxer* create_demuxer(callback callback);
 
-extern "C" __declspec(dllexport) void write_packet(demuxer* demuxer, uint8_t* packet, int packet_length);
+extern "C" __declspec(dllexport) void write_packet(demuxer* demuxer, const uint8_t* packet, int packet_length);
 
 extern "C" __declspec(dllexport) int read_frame(demuxer* demuxer, uint8_t* decoded_data, int* is_video);
 

@@ -3,12 +3,12 @@
 
 #include "demuxer.h"
 
-demuxer* create_demuxer()
+demuxer* create_demuxer(const callback callback)
 {
-    return new demuxer();
+    return new demuxer(callback);
 }
 
-void write_packet(demuxer* demuxer, uint8_t* packet, const int packet_length)
+void write_packet(demuxer* demuxer, const uint8_t* packet, const int packet_length)
 {
     demuxer->write_packet(packet, packet_length);
 }

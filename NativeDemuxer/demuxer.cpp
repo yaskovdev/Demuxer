@@ -9,12 +9,13 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 }
 
-demuxer::demuxer(): initialized_(false), fmt_ctx_(nullptr), source_buffer_({nullptr, 0, 0}), frame_(nullptr), pkt_(nullptr),
-    width_(0), height_(0), pix_fmt_(AV_PIX_FMT_NONE), video_dst_bufsize_(0), video_dst_data_{}, video_dst_linesize_{},
+demuxer::demuxer(const callback callback): initialized_(false), fmt_ctx_(nullptr), source_buffer_({nullptr, 0, 0, nullptr}),
+    frame_(nullptr), pkt_(nullptr), width_(0), height_(0), pix_fmt_(AV_PIX_FMT_NONE), video_dst_bufsize_(0), video_dst_data_{}, video_dst_linesize_{},
     audio_stream_idx_(-1), video_stream_idx_(-1), audio_dec_ctx_(nullptr), video_dec_ctx_(nullptr), decoder_needs_packet_(true), current_stream_index_(-1)
 {
     std::cout << "Demuxer created" << "\n";
     source_buffer_.ptr = new uint8_t[4 * 1024 * 1024];
+    source_buffer_.callback = callback;
 }
 
 int demuxer::initialize()
@@ -197,16 +198,8 @@ demuxer::~demuxer()
 int demuxer::read_packet(void* opaque, uint8_t* dst_buffer, const int dst_buffer_size)
 {
     const auto source_buffer = static_cast<struct buffer_data*>(opaque);
-    const int number_of_bytes_to_copy = FFMIN(source_buffer->size - source_buffer->offset, dst_buffer_size);
-    printf("ptr:%p remaining bytes:%zu\n", source_buffer->ptr + source_buffer->offset, source_buffer->size - source_buffer->offset);
-    if (number_of_bytes_to_copy == 0)
-    {
-        std::cout << "read_packet is about to return AVERROR_EOF" << "\n";
-        return AVERROR_EOF;
-    }
-    memcpy(dst_buffer, source_buffer->ptr + source_buffer->offset, number_of_bytes_to_copy);
-    source_buffer->offset += number_of_bytes_to_copy;
-    return number_of_bytes_to_copy;
+    const int res = source_buffer->callback(dst_buffer, dst_buffer_size);
+    return res == -1 ? AVERROR_EOF : res;
 }
 
 int demuxer::open_codec_context(int* stream_idx, AVCodecContext** dec_ctx, AVFormatContext* fmt_ctx, AVMediaType type)

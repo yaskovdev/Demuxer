@@ -1,6 +1,8 @@
 ﻿#pragma once
 #include <cstdint>
 
+#include "callback.h"
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -12,12 +14,13 @@ struct buffer_data
     uint8_t* ptr;
     int offset;
     size_t size;
+    callback callback;
 };
 
 class demuxer
 {
 public:
-    demuxer();
+    demuxer(callback callback);
 
     void write_packet(const uint8_t* packet, int packet_length);
 

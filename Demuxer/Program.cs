@@ -4,8 +4,8 @@ internal static class Program
 {
     public static async Task Main()
     {
-        using var demuxer = new Demuxer();
         var bytes = await File.ReadAllBytesAsync(@"c:\dev\experiment3\capture.webm");
+        using var demuxer = new Demuxer(bytes);
         await using var fileStream = File.Create(@"c:\dev\experiment3\capture.video");
         demuxer.WritePacket(bytes);
         while (true)

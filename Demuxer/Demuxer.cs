@@ -1,8 +1,21 @@
 ﻿namespace Demuxer;
 
+using System.Runtime.InteropServices;
+
 public class Demuxer : IDemuxer, IDisposable
 {
-    private readonly IntPtr _demuxer = NativeDemuxerApi.CreateDemuxer();
+    // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
+    private readonly Callback _callback;
+    private readonly byte[] _source;
+    private readonly IntPtr _demuxer;
+    private int _offset;
+
+    public Demuxer(byte[] source)
+    {
+        _callback = Callback;
+        _source = source;
+        _demuxer = NativeDemuxerApi.CreateDemuxer(_callback);
+    }
 
     public void WritePacket(byte[] packet)
     {
@@ -23,5 +36,18 @@ public class Demuxer : IDemuxer, IDisposable
     public void Dispose()
     {
         NativeDemuxerApi.DeleteDemuxer(_demuxer);
+    }
+
+    private int Callback(IntPtr buffer, int size)
+    {
+        var numberOfBytesToCopy = Math.Min(_source.Length - _offset, size);
+        Console.WriteLine($"Callback called with buffer {buffer} and size {size}");
+        if (numberOfBytesToCopy == 0)
+        {
+            return -1;
+        }
+        Marshal.Copy(_source, _offset, buffer, numberOfBytesToCopy);
+        _offset += numberOfBytesToCopy;
+        return numberOfBytesToCopy;
     }
 }
