@@ -15,7 +15,6 @@ internal static class Program
             {
                 break;
             }
-            Console.WriteLine($"Received {frame.Type} frame with {frame.Data.Length} bytes");
             if (frame.Type == FrameType.Video)
             {
                 await fileStream.WriteAsync(frame.Data);

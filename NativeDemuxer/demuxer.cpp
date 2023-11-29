@@ -9,11 +9,12 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 }
 
-demuxer::demuxer(): initialized_(false), fmt_ctx_(nullptr), source_buffer_({nullptr, 0}), frame_(nullptr), pkt_(nullptr),
+demuxer::demuxer(): initialized_(false), fmt_ctx_(nullptr), source_buffer_({nullptr, 0, 0}), frame_(nullptr), pkt_(nullptr),
     width_(0), height_(0), pix_fmt_(AV_PIX_FMT_NONE), video_dst_bufsize_(0), video_dst_data_{}, video_dst_linesize_{},
     audio_stream_idx_(-1), video_stream_idx_(-1), audio_dec_ctx_(nullptr), video_dec_ctx_(nullptr), decoder_needs_packet_(true), current_stream_index_(-1)
 {
     std::cout << "Demuxer created" << "\n";
+    source_buffer_.ptr = new uint8_t[4 * 1024 * 1024];
 }
 
 int demuxer::initialize()
@@ -113,10 +114,13 @@ int demuxer::initialize()
 
 void demuxer::write_packet(const uint8_t* packet, const int packet_length)
 {
+    // TODO: return Status.BufferFull if the buffer is full to show that it's time to read frames. Or probably use dynamic collection.
     std::cout << "Writing source packet of length " << packet_length << "\n";
-    source_buffer_.ptr = new uint8_t[packet_length]; // TODO: append to the buffer instead of rewriting. Return Status.BufferFull if the buffer is full to show that it's time to read frames. Or probably use dynamic collection.
-    source_buffer_.size = packet_length;
-    memcpy(source_buffer_.ptr, packet, source_buffer_.size);
+    memmove(source_buffer_.ptr, source_buffer_.ptr + source_buffer_.offset, source_buffer_.size);
+    source_buffer_.offset = 0;
+    memcpy(source_buffer_.ptr + source_buffer_.size, packet, packet_length);
+    source_buffer_.size += packet_length;
+    std::cout << "Done writing source packet of length " << packet_length << "\n";
 }
 
 int demuxer::read_frame(uint8_t* decoded_data, int* is_video)
@@ -171,7 +175,6 @@ int demuxer::read_frame(uint8_t* decoded_data, int* is_video)
             {
                 exit(1);
             }
-            std::cout << "Got video frame" << "\n";
             *is_video = 1;
             return 0;
         }
@@ -179,7 +182,6 @@ int demuxer::read_frame(uint8_t* decoded_data, int* is_video)
         {
             const size_t unpadded_linesize = frame_->nb_samples * av_get_bytes_per_sample(static_cast<AVSampleFormat>(frame_->format));
             memcpy(decoded_data, frame_->extended_data[0], unpadded_linesize);
-            std::cout << "Got audio frame" << "\n";
             *is_video = 0;
             return 0;
         }
@@ -189,23 +191,21 @@ int demuxer::read_frame(uint8_t* decoded_data, int* is_video)
 demuxer::~demuxer()
 {
     std::cout << "Demuxer destructor called" << "\n";
-    // TODO: figure out how to delete the buffer given that read_packet shifts it
-    // delete[] source_buffer_.ptr;
+    delete[] source_buffer_.ptr;
 }
 
 int demuxer::read_packet(void* opaque, uint8_t* dst_buffer, const int dst_buffer_size)
 {
     const auto source_buffer = static_cast<struct buffer_data*>(opaque);
-    const int number_of_bytes_to_copy = FFMIN(source_buffer->size, dst_buffer_size);
-    printf("ptr:%p size:%zu\n", source_buffer->ptr, source_buffer->size);
+    const int number_of_bytes_to_copy = FFMIN(source_buffer->size - source_buffer->offset, dst_buffer_size);
+    printf("ptr:%p remaining bytes:%zu\n", source_buffer->ptr + source_buffer->offset, source_buffer->size - source_buffer->offset);
     if (number_of_bytes_to_copy == 0)
     {
         std::cout << "read_packet is about to return AVERROR_EOF" << "\n";
         return AVERROR_EOF;
     }
-    memcpy(dst_buffer, source_buffer->ptr, number_of_bytes_to_copy);
-    source_buffer->ptr += number_of_bytes_to_copy;
-    source_buffer->size -= number_of_bytes_to_copy;
+    memcpy(dst_buffer, source_buffer->ptr + source_buffer->offset, number_of_bytes_to_copy);
+    source_buffer->offset += number_of_bytes_to_copy;
     return number_of_bytes_to_copy;
 }
 

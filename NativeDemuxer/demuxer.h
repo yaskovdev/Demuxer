@@ -10,6 +10,7 @@ extern "C" {
 struct buffer_data
 {
     uint8_t* ptr;
+    int offset;
     size_t size;
 };
 
