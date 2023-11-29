@@ -4,8 +4,14 @@ internal static class Program
 {
     public static async Task Main()
     {
-        var bytes = await File.ReadAllBytesAsync(@"c:\dev\experiment3\capture.webm");
-        using var demuxer = new Demuxer(bytes);
+        using var demuxer = new Demuxer();
+        var producer = new Thread(() =>
+        {
+            var simulator = new BrowserSimulator(demuxer);
+            simulator.StartProducingMedia();
+        });
+        producer.Start();
+
         await using var fileStream = File.Create(@"c:\dev\experiment3\capture.video");
         while (true)
         {
@@ -14,10 +20,12 @@ internal static class Program
             {
                 break;
             }
+            Console.WriteLine($"Extracted frame of type {frame.Type}");
             if (frame.Type == FrameType.Video)
             {
                 await fileStream.WriteAsync(frame.Data);
             }
         }
+        producer.Join();
     }
 }
