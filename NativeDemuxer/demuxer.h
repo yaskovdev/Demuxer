@@ -30,8 +30,6 @@ private:
     buffer_data source_buffer_;
     AVFrame* frame_;
     AVPacket* pkt_;
-    AVStream* video_stream_;
-    AVStream* audio_stream_;
     int width_;
     int height_;
     AVPixelFormat pix_fmt_;

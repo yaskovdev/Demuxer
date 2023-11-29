@@ -2,10 +2,11 @@
 
 internal static class Program
 {
-    public static void Main()
+    public static async Task Main()
     {
         using var demuxer = new Demuxer();
-        var bytes = File.ReadAllBytes(@"c:\dev\experiment3\capture.webm");
+        var bytes = await File.ReadAllBytesAsync(@"c:\dev\experiment3\capture.webm");
+        await using var fileStream = File.Create(@"c:\dev\experiment3\capture.video");
         demuxer.WritePacket(bytes);
         while (true)
         {
@@ -15,6 +16,10 @@ internal static class Program
                 break;
             }
             Console.WriteLine($"Received {frame.Type} frame with {frame.Data.Length} bytes");
+            if (frame.Type == FrameType.Video)
+            {
+                await fileStream.WriteAsync(frame.Data);
+            }
         }
     }
 }

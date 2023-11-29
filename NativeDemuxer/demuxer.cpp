@@ -9,7 +9,7 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 }
 
-demuxer::demuxer(): initialized_(false), fmt_ctx_(nullptr), source_buffer_({nullptr, 0}), frame_(nullptr), pkt_(nullptr), video_stream_(nullptr), audio_stream_(nullptr),
+demuxer::demuxer(): initialized_(false), fmt_ctx_(nullptr), source_buffer_({nullptr, 0}), frame_(nullptr), pkt_(nullptr),
     width_(0), height_(0), pix_fmt_(AV_PIX_FMT_NONE), video_dst_bufsize_(0), video_dst_data_{}, video_dst_linesize_{},
     audio_stream_idx_(-1), video_stream_idx_(-1), audio_dec_ctx_(nullptr), video_dec_ctx_(nullptr), decoder_needs_packet_(true), current_stream_index_(-1)
 {
@@ -65,11 +65,10 @@ int demuxer::initialize()
         return -1;
     }
 
+    bool decoder_context_opened = false;
     if (open_codec_context(&video_stream_idx_, &video_dec_ctx_, fmt_ctx_, AVMEDIA_TYPE_VIDEO) >= 0)
     {
-        video_stream_ = fmt_ctx_->streams[video_stream_idx_];
-
-        /* allocate image where the decoded image will be put */
+        decoder_context_opened = true;
         width_ = video_dec_ctx_->width;
         height_ = video_dec_ctx_->height;
         pix_fmt_ = video_dec_ctx_->pix_fmt;
@@ -84,12 +83,12 @@ int demuxer::initialize()
 
     if (open_codec_context(&audio_stream_idx_, &audio_dec_ctx_, fmt_ctx_, AVMEDIA_TYPE_AUDIO) >= 0)
     {
-        audio_stream_ = fmt_ctx_->streams[audio_stream_idx_];
+        decoder_context_opened = true;
     }
 
     av_dump_format(fmt_ctx_, 0, nullptr, 0);
 
-    if (!audio_stream_ && !video_stream_)
+    if (!decoder_context_opened)
     {
         fprintf(stderr, "Could not find audio or video stream in the input, aborting\n");
         return -1;
@@ -108,11 +107,6 @@ int demuxer::initialize()
         fprintf(stderr, "Could not allocate packet\n");
         return -1;
     }
-
-    if (video_stream_)
-        printf("Demuxing video\n");
-    if (audio_stream_)
-        printf("Demuxing audio\n");
 
     return 0;
 }
