@@ -21,6 +21,18 @@ public:
 private:
     uint8_t* buffer_;
     size_t buffer_size_;
+    AVFrame* frame_;
+    AVPacket* pkt_;
+    AVStream *video_stream_;
+    AVStream *audio_stream_;
+    FILE* video_dst_file_;
+    FILE* audio_dst_file_;
+    int width_;
+    int height_;
+    AVPixelFormat pix_fmt_;
+    int video_dst_bufsize_;
+    uint8_t* video_dst_data_[4];
+    int video_dst_linesize_[4];
     int audio_stream_idx_;
     int video_stream_idx_;
     AVCodecContext *audio_dec_ctx_;
