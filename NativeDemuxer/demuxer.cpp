@@ -15,7 +15,14 @@ struct buffer_data
     size_t size;
 };
 
-demuxer::demuxer(): buffer_(nullptr), buffer_size_(0), audio_dst_name_(R"(c:\dev\experiment3\capture.audio)"), video_dst_name_(R"(c:\dev\experiment3\capture.video)")
+struct sample_fmt_entry
+{
+    AVSampleFormat sample_fmt;
+    const char *fmt_be, *fmt_le;
+};
+
+demuxer::demuxer(): buffer_(nullptr), buffer_size_(0), audio_stream_idx_(-1), video_stream_idx_(-1), audio_dec_ctx_(nullptr), video_dec_ctx_(nullptr),
+                    audio_dst_name_(R"(c:\dev\experiment3\capture.audio)"), video_dst_name_(R"(c:\dev\experiment3\capture.video)"), decoder_needs_packet_(true), current_stream_index_(-1)
 {
     std::cout << "Demuxer created" << "\n";
 }
@@ -23,12 +30,12 @@ demuxer::demuxer(): buffer_(nullptr), buffer_size_(0), audio_dst_name_(R"(c:\dev
 void demuxer::write_packet(const uint8_t* packet, const int packet_length)
 {
     std::cout << "Writing source packet of length " << packet_length << "\n";
-    buffer_ = new uint8_t[packet_length];
+    buffer_ = new uint8_t[packet_length]; // TODO: append to the buffer instead of rewriting. Return Status.BufferFull if the buffer is full to show that it's time to read frames. Or probably use dynamic collection.
     buffer_size_ = packet_length;
     memcpy(buffer_, packet, buffer_size_);
 }
 
-void demuxer::read_frame() const
+void demuxer::read_frame()
 {
     buffer_data source_buffer = {buffer_, buffer_size_};
     AVFormatContext* fmt_ctx = avformat_alloc_context();
@@ -82,8 +89,6 @@ void demuxer::read_frame() const
     static AVFrame* frame = nullptr;
     static AVPacket* pkt = nullptr;
     static AVStream *video_stream = nullptr, *audio_stream = nullptr;
-    static AVCodecContext *video_dec_ctx = nullptr, *audio_dec_ctx;
-    static int video_stream_idx = -1, audio_stream_idx = -1;
     static FILE* video_dst_file = nullptr;
     static FILE* audio_dst_file = nullptr;
     static int width, height;
@@ -92,9 +97,9 @@ void demuxer::read_frame() const
     static uint8_t* video_dst_data[4] = {nullptr};
     static int video_dst_linesize[4];
 
-    if (open_codec_context(&video_stream_idx, &video_dec_ctx, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0)
+    if (open_codec_context(&video_stream_idx_, &video_dec_ctx_, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0)
     {
-        video_stream = fmt_ctx->streams[video_stream_idx];
+        video_stream = fmt_ctx->streams[video_stream_idx_];
 
         if (fopen_s(&video_dst_file, video_dst_name_, "wb"))
         {
@@ -103,9 +108,9 @@ void demuxer::read_frame() const
         }
 
         /* allocate image where the decoded image will be put */
-        width = video_dec_ctx->width;
-        height = video_dec_ctx->height;
-        pix_fmt = video_dec_ctx->pix_fmt;
+        width = video_dec_ctx_->width;
+        height = video_dec_ctx_->height;
+        pix_fmt = video_dec_ctx_->pix_fmt;
         ret = av_image_alloc(video_dst_data, video_dst_linesize, width, height, pix_fmt, 1);
         if (ret < 0)
         {
@@ -115,9 +120,9 @@ void demuxer::read_frame() const
         video_dst_bufsize = ret;
     }
 
-    if (open_codec_context(&audio_stream_idx, &audio_dec_ctx, fmt_ctx, AVMEDIA_TYPE_AUDIO) >= 0)
+    if (open_codec_context(&audio_stream_idx_, &audio_dec_ctx_, fmt_ctx, AVMEDIA_TYPE_AUDIO) >= 0)
     {
-        audio_stream = fmt_ctx->streams[audio_stream_idx];
+        audio_stream = fmt_ctx->streams[audio_stream_idx_];
 
         if (fopen_s(&audio_dst_file, audio_dst_name_, "wb"))
         {
@@ -126,7 +131,6 @@ void demuxer::read_frame() const
         }
     }
 
-    /* dump input information to stderr */
     av_dump_format(fmt_ctx, 0, nullptr, 0);
 
     if (!audio_stream && !video_stream)
@@ -154,25 +158,63 @@ void demuxer::read_frame() const
     if (audio_stream)
         printf("Demuxing audio\n");
 
+    // ----
+
+    // while (true)
+    // {
+    //     if (decoder_needs_packet_)
+    //     {
+    //         if (av_read_frame(fmt_ctx, pkt) < 0)
+    //         {
+    //             return /* need_more_data */;
+    //         }
+    //         current_stream_index_ = pkt->stream_index;
+    //         if (avcodec_send_packet(current_context(), pkt) < 0)
+    //         {
+    //             exit(1);
+    //         }
+    //         decoder_needs_packet_ = false;
+    //     }
+    //
+    //     const int decoding_status = avcodec_receive_frame(current_context(), frame);
+    //     if (decoding_status < 0)
+    //     {
+    //         if (decoding_status == AVERROR_EOF || decoding_status == AVERROR(EAGAIN))
+    //         {
+    //             decoder_needs_packet_ = true;
+    //         }
+    //         else
+    //         {
+    //             exit(1);
+    //         }
+    //     }
+    //     else
+    //     {
+    //         return /* frame */;
+    //     }
+    // }
+
+    // ----
+
     /* read frames from the file */
     while (av_read_frame(fmt_ctx, pkt) >= 0)
     {
         // check if the packet belongs to a stream we are interested in, otherwise
         // skip it
-        if (pkt->stream_index == video_stream_idx)
-            ret = decode_packet(video_dec_ctx, pkt, frame, width, height, pix_fmt, video_dst_data, video_dst_linesize, video_dst_bufsize, video_dst_file, audio_dst_file);
-        else if (pkt->stream_index == audio_stream_idx)
-            ret = decode_packet(audio_dec_ctx, pkt, frame, width, height, pix_fmt, video_dst_data, video_dst_linesize, video_dst_bufsize, video_dst_file, audio_dst_file);
+        if (pkt->stream_index == video_stream_idx_)
+            ret = decode_packet(video_dec_ctx_, pkt, frame, width, height, pix_fmt, video_dst_data, video_dst_linesize, video_dst_bufsize, video_dst_file, audio_dst_file);
+        else if (pkt->stream_index == audio_stream_idx_)
+            ret = decode_packet(audio_dec_ctx_, pkt, frame, width, height, pix_fmt, video_dst_data, video_dst_linesize, video_dst_bufsize, video_dst_file, audio_dst_file);
         av_packet_unref(pkt);
         if (ret < 0)
             break;
     }
 
     /* flush the decoders */
-    if (video_dec_ctx)
-        decode_packet(video_dec_ctx, nullptr, frame, width, height, pix_fmt, video_dst_data, video_dst_linesize, video_dst_bufsize, video_dst_file, audio_dst_file);
-    if (audio_dec_ctx)
-        decode_packet(audio_dec_ctx, nullptr, frame, width, height, pix_fmt, video_dst_data, video_dst_linesize, video_dst_bufsize, video_dst_file, audio_dst_file);
+    if (video_dec_ctx_)
+        decode_packet(video_dec_ctx_, nullptr, frame, width, height, pix_fmt, video_dst_data, video_dst_linesize, video_dst_bufsize, video_dst_file, audio_dst_file);
+    if (audio_dec_ctx_)
+        decode_packet(audio_dec_ctx_, nullptr, frame, width, height, pix_fmt, video_dst_data, video_dst_linesize, video_dst_bufsize, video_dst_file, audio_dst_file);
 
     printf("Demuxing succeeded.\n");
 
@@ -186,8 +228,8 @@ void demuxer::read_frame() const
 
     if (audio_stream)
     {
-        AVSampleFormat sfmt = audio_dec_ctx->sample_fmt;
-        int n_channels = audio_dec_ctx->ch_layout.nb_channels;
+        AVSampleFormat sfmt = audio_dec_ctx_->sample_fmt;
+        int n_channels = audio_dec_ctx_->ch_layout.nb_channels;
         const char* fmt;
 
         if (av_sample_fmt_is_planar(sfmt))
@@ -205,7 +247,7 @@ void demuxer::read_frame() const
 
         printf("Play the output audio file with the command:\n"
             "ffplay -f %s -ac %d -ar %d %s\n",
-            fmt, n_channels, audio_dec_ctx->sample_rate,
+            fmt, n_channels, audio_dec_ctx_->sample_rate,
             audio_dst_name_);
     }
 }
@@ -216,24 +258,20 @@ demuxer::~demuxer()
     delete[] buffer_;
 }
 
-int demuxer::read_packet(void* opaque, uint8_t* buf, const int buf_size)
+int demuxer::read_packet(void* opaque, uint8_t* dst_buffer, const int dst_buffer_size)
 {
-    const auto bd = static_cast<struct buffer_data*>(opaque);
-    std::cout << "read_packet called with buf_size " << buf_size << "\n";
-
-    const int available_buf_size = FFMIN(buf_size, bd->size);
-    if (available_buf_size)
+    const auto source_buffer = static_cast<struct buffer_data*>(opaque);
+    const int number_of_bytes_to_copy = FFMIN(source_buffer->size, dst_buffer_size);
+    printf("ptr:%p size:%zu\n", source_buffer->ptr, source_buffer->size);
+    if (number_of_bytes_to_copy == 0)
     {
-        printf("ptr:%p size:%zu\n", bd->ptr, bd->size);
-
-        memcpy(buf, bd->ptr, available_buf_size);
-        bd->ptr += available_buf_size;
-        bd->size -= available_buf_size;
-
-        return available_buf_size;
+        std::cout << "read_packet is about to return AVERROR_EOF" << "\n";
+        return AVERROR_EOF;
     }
-
-    return AVERROR_EOF;
+    memcpy(dst_buffer, source_buffer->ptr, number_of_bytes_to_copy);
+    source_buffer->ptr += number_of_bytes_to_copy;
+    source_buffer->size -= number_of_bytes_to_copy;
+    return number_of_bytes_to_copy;
 }
 
 int demuxer::decode_packet(AVCodecContext* dec, const AVPacket* pkt, AVFrame* frame, int width, int height, AVPixelFormat pix_fmt, uint8_t* video_dst_data[4], int video_dst_linesize[4], int video_dst_bufsize, FILE* video_dst_file, FILE* audio_dst_file)
@@ -275,7 +313,7 @@ int demuxer::decode_packet(AVCodecContext* dec, const AVPacket* pkt, AVFrame* fr
     return 0;
 }
 
-int demuxer::open_codec_context(int* stream_idx, AVCodecContext** dec_ctx, AVFormatContext* fmt_ctx, enum AVMediaType type)
+int demuxer::open_codec_context(int* stream_idx, AVCodecContext** dec_ctx, AVFormatContext* fmt_ctx, AVMediaType type)
 {
     int ret, stream_index;
     AVStream* st;
@@ -332,23 +370,18 @@ int demuxer::open_codec_context(int* stream_idx, AVCodecContext** dec_ctx, AVFor
 
 int demuxer::get_format_from_sample_fmt(const char** fmt, AVSampleFormat sample_fmt)
 {
-    int i;
-    struct sample_fmt_entry
-    {
-        enum AVSampleFormat sample_fmt;
-        const char *fmt_be, *fmt_le;
-    } sample_fmt_entries[] = {
-            {AV_SAMPLE_FMT_U8, "u8", "u8"},
-            {AV_SAMPLE_FMT_S16, "s16be", "s16le"},
-            {AV_SAMPLE_FMT_S32, "s32be", "s32le"},
-            {AV_SAMPLE_FMT_FLT, "f32be", "f32le"},
-            {AV_SAMPLE_FMT_DBL, "f64be", "f64le"},
-        };
+    sample_fmt_entry sample_fmt_entries[] = {
+        {AV_SAMPLE_FMT_U8, "u8", "u8"},
+        {AV_SAMPLE_FMT_S16, "s16be", "s16le"},
+        {AV_SAMPLE_FMT_S32, "s32be", "s32le"},
+        {AV_SAMPLE_FMT_FLT, "f32be", "f32le"},
+        {AV_SAMPLE_FMT_DBL, "f64be", "f64le"},
+    };
     *fmt = nullptr;
 
-    for (i = 0; i < FF_ARRAY_ELEMS(sample_fmt_entries); i++)
+    for (int i = 0; i < FF_ARRAY_ELEMS(sample_fmt_entries); i++)
     {
-        struct sample_fmt_entry* entry = &sample_fmt_entries[i];
+        sample_fmt_entry* entry = &sample_fmt_entries[i];
         if (sample_fmt == entry->sample_fmt)
         {
             *fmt = AV_NE(entry->fmt_be, entry->fmt_le);
@@ -360,6 +393,20 @@ int demuxer::get_format_from_sample_fmt(const char** fmt, AVSampleFormat sample_
         "sample format %s is not supported as output format\n",
         av_get_sample_fmt_name(sample_fmt));
     return -1;
+}
+
+AVCodecContext* demuxer::current_context() const
+{
+    if (current_stream_index_ == audio_stream_idx_)
+    {
+        return audio_dec_ctx_;
+    }
+    if (current_stream_index_ == video_stream_idx_)
+    {
+        return video_dec_ctx_;
+    }
+    // TODO: handle this case properly (should skip such packet)
+    exit(1);
 }
 
 int demuxer::output_video_frame(AVFrame* frame, int width, int height, AVPixelFormat pix_fmt, uint8_t* video_dst_data[4], int video_dst_linesize[4], int video_dst_bufsize, FILE* video_dst_file)

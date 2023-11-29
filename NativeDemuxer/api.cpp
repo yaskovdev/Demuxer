@@ -13,7 +13,7 @@ void write_packet(demuxer* demuxer, uint8_t* packet, const int packet_length)
     demuxer->write_packet(packet, packet_length);
 }
 
-void read_frame(const demuxer* demuxer)
+void read_frame(demuxer* demuxer)
 {
     demuxer->read_frame();
 }
