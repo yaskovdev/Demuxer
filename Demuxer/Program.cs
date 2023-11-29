@@ -7,7 +7,6 @@ internal static class Program
         var bytes = await File.ReadAllBytesAsync(@"c:\dev\experiment3\capture.webm");
         using var demuxer = new Demuxer(bytes);
         await using var fileStream = File.Create(@"c:\dev\experiment3\capture.video");
-        demuxer.WritePacket(bytes);
         while (true)
         {
             var frame = demuxer.ReadFrame();

@@ -22,16 +22,14 @@ class demuxer
 public:
     demuxer(callback callback);
 
-    void write_packet(const uint8_t* packet, int packet_length);
-
     int read_frame(uint8_t* decoded_data, int* is_video);
 
     ~demuxer();
 
 private:
     bool initialized_;
+    callback callback_;
     AVFormatContext* fmt_ctx_;
-    buffer_data source_buffer_;
     AVFrame* frame_;
     AVPacket* pkt_;
     int width_;

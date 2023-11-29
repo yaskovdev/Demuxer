@@ -9,13 +9,11 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 }
 
-demuxer::demuxer(const callback callback): initialized_(false), fmt_ctx_(nullptr), source_buffer_({nullptr, 0, 0, nullptr}),
+demuxer::demuxer(const callback callback): initialized_(false), callback_(callback), fmt_ctx_(nullptr),
     frame_(nullptr), pkt_(nullptr), width_(0), height_(0), pix_fmt_(AV_PIX_FMT_NONE), video_dst_bufsize_(0), video_dst_data_{}, video_dst_linesize_{},
     audio_stream_idx_(-1), video_stream_idx_(-1), audio_dec_ctx_(nullptr), video_dec_ctx_(nullptr), decoder_needs_packet_(true), current_stream_index_(-1)
 {
     std::cout << "Demuxer created" << "\n";
-    source_buffer_.ptr = new uint8_t[4 * 1024 * 1024];
-    source_buffer_.callback = callback;
 }
 
 int demuxer::initialize()
@@ -34,7 +32,7 @@ int demuxer::initialize()
         return -1;
     }
 
-    AVIOContext* io_ctx = avio_alloc_context(io_ctx_buffer, io_ctx_buffer_size, 0, &source_buffer_, &read_packet, nullptr, nullptr);
+    AVIOContext* io_ctx = avio_alloc_context(io_ctx_buffer, io_ctx_buffer_size, 0, &callback_, &read_packet, nullptr, nullptr);
 
     if (io_ctx)
     {
@@ -113,17 +111,6 @@ int demuxer::initialize()
     return 0;
 }
 
-void demuxer::write_packet(const uint8_t* packet, const int packet_length)
-{
-    // TODO: return Status.BufferFull if the buffer is full to show that it's time to read frames. Or probably use dynamic collection.
-    std::cout << "Writing source packet of length " << packet_length << "\n";
-    memmove(source_buffer_.ptr, source_buffer_.ptr + source_buffer_.offset, source_buffer_.size);
-    source_buffer_.offset = 0;
-    memcpy(source_buffer_.ptr + source_buffer_.size, packet, packet_length);
-    source_buffer_.size += packet_length;
-    std::cout << "Done writing source packet of length " << packet_length << "\n";
-}
-
 int demuxer::read_frame(uint8_t* decoded_data, int* is_video)
 {
     if (!initialized_)
@@ -192,13 +179,12 @@ int demuxer::read_frame(uint8_t* decoded_data, int* is_video)
 demuxer::~demuxer()
 {
     std::cout << "Demuxer destructor called" << "\n";
-    delete[] source_buffer_.ptr;
 }
 
 int demuxer::read_packet(void* opaque, uint8_t* dst_buffer, const int dst_buffer_size)
 {
-    const auto source_buffer = static_cast<struct buffer_data*>(opaque);
-    const int res = source_buffer->callback(dst_buffer, dst_buffer_size);
+    const callback* c = static_cast<callback*>(opaque);
+    const int res = (*c)(dst_buffer, dst_buffer_size);
     return res == -1 ? AVERROR_EOF : res;
 }
 

@@ -17,11 +17,6 @@ public class Demuxer : IDemuxer, IDisposable
         _demuxer = NativeDemuxerApi.CreateDemuxer(_callback);
     }
 
-    public void WritePacket(byte[] packet)
-    {
-        NativeDemuxerApi.WritePacket(_demuxer, packet, packet.Length);
-    }
-
     /// <summary>
     /// If the returned array is empty, then there is not enough source data. Write more packets.
     /// </summary>
