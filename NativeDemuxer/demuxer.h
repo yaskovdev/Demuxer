@@ -20,7 +20,7 @@ public:
 
     void write_packet(const uint8_t* packet, int packet_length);
 
-    int read_frame();
+    int read_frame(uint8_t* decoded_data, int* is_video);
 
     ~demuxer();
 

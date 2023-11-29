@@ -4,5 +4,5 @@ public interface IDemuxer
 {
     void WritePacket(byte[] packet);
 
-    byte[] ReadFrame();
+    Frame ReadFrame();
 }

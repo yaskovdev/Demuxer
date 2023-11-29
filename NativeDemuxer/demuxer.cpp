@@ -16,7 +16,7 @@ struct sample_fmt_entry
 };
 
 demuxer::demuxer(): initialized_(false), fmt_ctx_(nullptr), source_buffer_({nullptr, 0}), frame_(nullptr), pkt_(nullptr), video_stream_(nullptr), audio_stream_(nullptr),
-    video_dst_file_(nullptr), audio_dst_file_(nullptr), width_(0), height_(0), pix_fmt_(), video_dst_bufsize_(0), video_dst_data_{}, video_dst_linesize_{},
+    video_dst_file_(nullptr), audio_dst_file_(nullptr), width_(0), height_(0), pix_fmt_(AV_PIX_FMT_NONE), video_dst_bufsize_(0), video_dst_data_{}, video_dst_linesize_{},
     audio_stream_idx_(-1), video_stream_idx_(-1), audio_dec_ctx_(nullptr), video_dec_ctx_(nullptr),
     audio_dst_name_(R"(c:\dev\experiment3\capture.audio)"), video_dst_name_(R"(c:\dev\experiment3\capture.video)"), decoder_needs_packet_(true), current_stream_index_(-1)
 {
@@ -144,7 +144,7 @@ void demuxer::write_packet(const uint8_t* packet, const int packet_length)
     memcpy(source_buffer_.ptr, packet, source_buffer_.size);
 }
 
-int demuxer::read_frame()
+int demuxer::read_frame(uint8_t* decoded_data, int* is_video)
 {
     if (!initialized_)
     {
@@ -163,99 +163,54 @@ int demuxer::read_frame()
 
     // ----
 
-    // while (true)
-    // {
-    //     if (decoder_needs_packet_)
-    //     {
-    //         if (av_read_frame(fmt_ctx, pkt) < 0)
-    //         {
-    //             return /* need_more_data */;
-    //         }
-    //         current_stream_index_ = pkt->stream_index;
-    //         if (avcodec_send_packet(current_context(), pkt) < 0)
-    //         {
-    //             exit(1);
-    //         }
-    //         decoder_needs_packet_ = false;
-    //     }
-    //
-    //     const int decoding_status = avcodec_receive_frame(current_context(), frame);
-    //     if (decoding_status < 0)
-    //     {
-    //         if (decoding_status == AVERROR_EOF || decoding_status == AVERROR(EAGAIN))
-    //         {
-    //             decoder_needs_packet_ = true;
-    //         }
-    //         else
-    //         {
-    //             exit(1);
-    //         }
-    //     }
-    //     else
-    //     {
-    //         return /* frame */;
-    //     }
-    // }
-
-    // ----
-
-    /* read frames from the file */
-    while (av_read_frame(fmt_ctx_, pkt_) >= 0)
+    while (true)
     {
-        // check if the packet belongs to a stream we are interested in, otherwise
-        // skip it
-        int ret = 0;
-        if (pkt_->stream_index == video_stream_idx_)
-            ret = decode_packet(video_dec_ctx_, pkt_);
-        else if (pkt_->stream_index == audio_stream_idx_)
-            ret = decode_packet(audio_dec_ctx_, pkt_);
-        av_packet_unref(pkt_);
-        if (ret < 0)
-            break;
-    }
-
-    /* flush the decoders */
-    if (video_dec_ctx_)
-        decode_packet(video_dec_ctx_, nullptr);
-    if (audio_dec_ctx_)
-        decode_packet(audio_dec_ctx_, nullptr);
-
-    printf("Demuxing succeeded.\n");
-
-    if (video_stream_)
-    {
-        printf("Play the output video file with the command:\n"
-            "ffplay -f rawvideo -pix_fmt %i -video_size %dx%d %s\n",
-            pix_fmt_, width_, height_,
-            video_dst_name_);
-    }
-
-    if (audio_stream_)
-    {
-        AVSampleFormat sfmt = audio_dec_ctx_->sample_fmt;
-        int n_channels = audio_dec_ctx_->ch_layout.nb_channels;
-        const char* fmt;
-
-        if (av_sample_fmt_is_planar(sfmt))
+        if (decoder_needs_packet_)
         {
-            const char* packed = av_get_sample_fmt_name(sfmt);
-            printf("Warning: the sample format the decoder produced is planar "
-                "(%s). This example will output the first channel only.\n",
-                packed ? packed : "?");
-            sfmt = av_get_packed_sample_fmt(sfmt);
-            n_channels = 1;
+            if (av_read_frame(fmt_ctx_, pkt_) < 0)
+            {
+                return -1;
+            }
+            current_stream_index_ = pkt_->stream_index;
+            if (avcodec_send_packet(current_context(), pkt_) < 0)
+            {
+                exit(1); // TODO: throw exception instead
+            }
+            decoder_needs_packet_ = false;
         }
 
-        if (get_format_from_sample_fmt(&fmt, sfmt) < 0)
-            exit(1);
-
-        printf("Play the output audio file with the command:\n"
-            "ffplay -f %s -ac %d -ar %d %s\n",
-            fmt, n_channels, audio_dec_ctx_->sample_rate,
-            audio_dst_name_);
+        const int decoding_status = avcodec_receive_frame(current_context(), frame_);
+        if (decoding_status < 0)
+        {
+            if (decoding_status == AVERROR_EOF || decoding_status == AVERROR(EAGAIN))
+            {
+                decoder_needs_packet_ = true;
+            }
+            else
+            {
+                exit(1);
+            }
+        }
+        else if (pkt_->stream_index == video_stream_idx_)
+        {
+            const int buffer_size = av_image_get_buffer_size(AV_PIX_FMT_YUV420P, width_, height_, 1);
+            if (av_image_copy_to_buffer(decoded_data, buffer_size, frame_->data, frame_->linesize, AV_PIX_FMT_YUV420P, width_, height_, 1) < 0)
+            {
+                exit(1);
+            }
+            std::cout << "Got video frame" << "\n";
+            *is_video = 1;
+            return 0;
+        }
+        else
+        {
+            const size_t unpadded_linesize = frame_->nb_samples * av_get_bytes_per_sample(static_cast<AVSampleFormat>(frame_->format));
+            memcpy(decoded_data, frame_->extended_data[0], unpadded_linesize);
+            std::cout << "Got audio frame" << "\n";
+            *is_video = 0;
+            return 0;
+        }
     }
-
-    return 0;
 }
 
 demuxer::~demuxer()
