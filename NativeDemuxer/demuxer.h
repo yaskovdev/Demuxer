@@ -50,7 +50,7 @@ private:
 
     static int read_packet(void* opaque, uint8_t* dst_buffer, int dst_buffer_size);
 
-    static int decode_packet(AVCodecContext* dec, const AVPacket* pkt, AVFrame* frame, int width, int height, AVPixelFormat pix_fmt, uint8_t* video_dst_data[4], int video_dst_linesize[4], int video_dst_bufsize, FILE* video_dst_file, FILE* audio_dst_file);
+    int decode_packet(AVCodecContext* dec, const AVPacket* pkt);
 
     static int open_codec_context(int* stream_idx, AVCodecContext** dec_ctx, AVFormatContext* fmt_ctx, AVMediaType type);
 

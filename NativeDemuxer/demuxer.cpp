@@ -193,9 +193,9 @@ void demuxer::read_frame()
         // skip it
         int ret = 0;
         if (pkt_->stream_index == video_stream_idx_)
-            ret = decode_packet(video_dec_ctx_, pkt_, frame_, width_, height_, pix_fmt_, video_dst_data_, video_dst_linesize_, video_dst_bufsize_, video_dst_file_, audio_dst_file_);
+            ret = decode_packet(video_dec_ctx_, pkt_);
         else if (pkt_->stream_index == audio_stream_idx_)
-            ret = decode_packet(audio_dec_ctx_, pkt_, frame_, width_, height_, pix_fmt_, video_dst_data_, video_dst_linesize_, video_dst_bufsize_, video_dst_file_, audio_dst_file_);
+            ret = decode_packet(audio_dec_ctx_, pkt_);
         av_packet_unref(pkt_);
         if (ret < 0)
             break;
@@ -203,9 +203,9 @@ void demuxer::read_frame()
 
     /* flush the decoders */
     if (video_dec_ctx_)
-        decode_packet(video_dec_ctx_, nullptr, frame_, width_, height_, pix_fmt_, video_dst_data_, video_dst_linesize_, video_dst_bufsize_, video_dst_file_, audio_dst_file_);
+        decode_packet(video_dec_ctx_, nullptr);
     if (audio_dec_ctx_)
-        decode_packet(audio_dec_ctx_, nullptr, frame_, width_, height_, pix_fmt_, video_dst_data_, video_dst_linesize_, video_dst_bufsize_, video_dst_file_, audio_dst_file_);
+        decode_packet(audio_dec_ctx_, nullptr);
 
     printf("Demuxing succeeded.\n");
 
@@ -265,7 +265,7 @@ int demuxer::read_packet(void* opaque, uint8_t* dst_buffer, const int dst_buffer
     return number_of_bytes_to_copy;
 }
 
-int demuxer::decode_packet(AVCodecContext* dec, const AVPacket* pkt, AVFrame* frame, int width, int height, AVPixelFormat pix_fmt, uint8_t* video_dst_data[4], int video_dst_linesize[4], int video_dst_bufsize, FILE* video_dst_file, FILE* audio_dst_file)
+int demuxer::decode_packet(AVCodecContext* dec, const AVPacket* pkt)
 {
     // submit the packet to the decoder
     int ret = avcodec_send_packet(dec, pkt);
@@ -278,7 +278,7 @@ int demuxer::decode_packet(AVCodecContext* dec, const AVPacket* pkt, AVFrame* fr
     // get all the available frames from the decoder
     while (ret >= 0)
     {
-        ret = avcodec_receive_frame(dec, frame);
+        ret = avcodec_receive_frame(dec, frame_);
         if (ret < 0)
         {
             // those two return values are special and mean there is no output
@@ -292,11 +292,11 @@ int demuxer::decode_packet(AVCodecContext* dec, const AVPacket* pkt, AVFrame* fr
 
         // write the frame data to output file
         if (dec->codec->type == AVMEDIA_TYPE_VIDEO)
-            ret = output_video_frame(frame, width, height, pix_fmt, video_dst_data, video_dst_linesize, video_dst_bufsize, video_dst_file);
+            ret = output_video_frame(frame_, width_, height_, pix_fmt_, video_dst_data_, video_dst_linesize_, video_dst_bufsize_, video_dst_file_);
         else
-            ret = output_audio_frame(frame, audio_dst_file);
+            ret = output_audio_frame(frame_, audio_dst_file_);
 
-        av_frame_unref(frame);
+        av_frame_unref(frame_);
         if (ret < 0)
             return ret;
     }
