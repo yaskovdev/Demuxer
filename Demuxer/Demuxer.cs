@@ -9,10 +9,13 @@ public class Demuxer : IDemuxer, IDisposable
         NativeDemuxerApi.WritePacket(_demuxer, packet, packet.Length);
     }
 
+    /// <summary>
+    /// If the returned array is empty, then there is not enough source data. Write more packets.
+    /// </summary>
     public byte[] ReadFrame()
     {
-        NativeDemuxerApi.ReadFrame(_demuxer);
-        return Array.Empty<byte>();
+        var status = NativeDemuxerApi.ReadFrame(_demuxer);
+        return status == 0 ? new byte[] { 0 } : Array.Empty<byte>(); // TODO: return real frame if status is 0
     }
 
     public void Dispose()

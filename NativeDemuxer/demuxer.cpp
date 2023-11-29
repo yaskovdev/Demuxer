@@ -9,19 +9,13 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 }
 
-struct buffer_data
-{
-    uint8_t* ptr;
-    size_t size;
-};
-
 struct sample_fmt_entry
 {
     AVSampleFormat sample_fmt;
     const char *fmt_be, *fmt_le;
 };
 
-demuxer::demuxer(): buffer_(nullptr), buffer_size_(0), frame_(nullptr), pkt_(nullptr), video_stream_(nullptr), audio_stream_(nullptr),
+demuxer::demuxer(): initialized_(false), fmt_ctx_(nullptr), source_buffer_({nullptr, 0}), frame_(nullptr), pkt_(nullptr), video_stream_(nullptr), audio_stream_(nullptr),
     video_dst_file_(nullptr), audio_dst_file_(nullptr), width_(0), height_(0), pix_fmt_(), video_dst_bufsize_(0), video_dst_data_{}, video_dst_linesize_{},
     audio_stream_idx_(-1), video_stream_idx_(-1), audio_dec_ctx_(nullptr), video_dec_ctx_(nullptr),
     audio_dst_name_(R"(c:\dev\experiment3\capture.audio)"), video_dst_name_(R"(c:\dev\experiment3\capture.video)"), decoder_needs_packet_(true), current_stream_index_(-1)
@@ -29,19 +23,10 @@ demuxer::demuxer(): buffer_(nullptr), buffer_size_(0), frame_(nullptr), pkt_(nul
     std::cout << "Demuxer created" << "\n";
 }
 
-void demuxer::write_packet(const uint8_t* packet, const int packet_length)
+int demuxer::initialize()
 {
-    std::cout << "Writing source packet of length " << packet_length << "\n";
-    buffer_ = new uint8_t[packet_length]; // TODO: append to the buffer instead of rewriting. Return Status.BufferFull if the buffer is full to show that it's time to read frames. Or probably use dynamic collection.
-    buffer_size_ = packet_length;
-    memcpy(buffer_, packet, buffer_size_);
-}
-
-void demuxer::read_frame()
-{
-    buffer_data source_buffer = {buffer_, buffer_size_};
-    AVFormatContext* fmt_ctx = avformat_alloc_context();
-    std::cout << "Allocated format context " << fmt_ctx << "\n";
+    fmt_ctx_ = avformat_alloc_context();
+    std::cout << "Allocated format context " << fmt_ctx_ << "\n";
 
     constexpr size_t io_ctx_buffer_size = 4096;
     const auto io_ctx_buffer = static_cast<uint8_t*>(av_malloc(io_ctx_buffer_size));
@@ -51,10 +36,10 @@ void demuxer::read_frame()
     }
     else
     {
-        exit(1);
+        return -1;
     }
 
-    AVIOContext* io_ctx = avio_alloc_context(io_ctx_buffer, io_ctx_buffer_size, 0, &source_buffer, &read_packet, nullptr, nullptr);
+    AVIOContext* io_ctx = avio_alloc_context(io_ctx_buffer, io_ctx_buffer_size, 0, &source_buffer_, &read_packet, nullptr, nullptr);
 
     if (io_ctx)
     {
@@ -62,12 +47,12 @@ void demuxer::read_frame()
     }
     else
     {
-        exit(1);
+        return -1;
     }
 
-    fmt_ctx->pb = io_ctx;
+    fmt_ctx_->pb = io_ctx;
 
-    const int open_input_res = avformat_open_input(&fmt_ctx, nullptr, nullptr, nullptr);
+    const int open_input_res = avformat_open_input(&fmt_ctx_, nullptr, nullptr, nullptr);
     if (open_input_res >= 0)
     {
         std::cout << "Opened input" << "\n";
@@ -75,26 +60,26 @@ void demuxer::read_frame()
     else
     {
         std::cout << "Cannot opened input, result is " << (open_input_res == AVERROR_INVALIDDATA) << "\n";
-        exit(1);
+        return -1;
     }
 
-    if (avformat_find_stream_info(fmt_ctx, nullptr) >= 0)
+    if (avformat_find_stream_info(fmt_ctx_, nullptr) >= 0)
     {
         std::cout << "Found stream info" << "\n";
     }
     else
     {
-        exit(1);
+        return -1;
     }
 
-    if (open_codec_context(&video_stream_idx_, &video_dec_ctx_, fmt_ctx, AVMEDIA_TYPE_VIDEO) >= 0)
+    if (open_codec_context(&video_stream_idx_, &video_dec_ctx_, fmt_ctx_, AVMEDIA_TYPE_VIDEO) >= 0)
     {
-        video_stream_ = fmt_ctx->streams[video_stream_idx_];
+        video_stream_ = fmt_ctx_->streams[video_stream_idx_];
 
         if (fopen_s(&video_dst_file_, video_dst_name_, "wb"))
         {
             std::cerr << "Could not open destination file " << video_dst_name_ << "\n";
-            exit(1);
+            return -1;
         }
 
         /* allocate image where the decoded image will be put */
@@ -105,48 +90,76 @@ void demuxer::read_frame()
         if (ret < 0)
         {
             fprintf(stderr, "Could not allocate raw video buffer\n");
-            exit(1);
+            return -1;
         }
         video_dst_bufsize_ = ret;
     }
 
-    if (open_codec_context(&audio_stream_idx_, &audio_dec_ctx_, fmt_ctx, AVMEDIA_TYPE_AUDIO) >= 0)
+    if (open_codec_context(&audio_stream_idx_, &audio_dec_ctx_, fmt_ctx_, AVMEDIA_TYPE_AUDIO) >= 0)
     {
-        audio_stream_ = fmt_ctx->streams[audio_stream_idx_];
+        audio_stream_ = fmt_ctx_->streams[audio_stream_idx_];
 
         if (fopen_s(&audio_dst_file_, audio_dst_name_, "wb"))
         {
             fprintf(stderr, "Could not open destination file %s\n", audio_dst_name_);
-            exit(1);
+            return -1;
         }
     }
 
-    av_dump_format(fmt_ctx, 0, nullptr, 0);
+    av_dump_format(fmt_ctx_, 0, nullptr, 0);
 
     if (!audio_stream_ && !video_stream_)
     {
         fprintf(stderr, "Could not find audio or video stream in the input, aborting\n");
-        exit(1);
+        return -1;
     }
 
     frame_ = av_frame_alloc();
     if (!frame_)
     {
         fprintf(stderr, "Could not allocate frame\n");
-        exit(1);
+        return -1;
     }
 
     pkt_ = av_packet_alloc();
     if (!pkt_)
     {
         fprintf(stderr, "Could not allocate packet\n");
-        exit(1);
+        return -1;
     }
 
     if (video_stream_)
         printf("Demuxing video\n");
     if (audio_stream_)
         printf("Demuxing audio\n");
+
+    return 0;
+}
+
+void demuxer::write_packet(const uint8_t* packet, const int packet_length)
+{
+    std::cout << "Writing source packet of length " << packet_length << "\n";
+    source_buffer_.ptr = new uint8_t[packet_length]; // TODO: append to the buffer instead of rewriting. Return Status.BufferFull if the buffer is full to show that it's time to read frames. Or probably use dynamic collection.
+    source_buffer_.size = packet_length;
+    memcpy(source_buffer_.ptr, packet, source_buffer_.size);
+}
+
+int demuxer::read_frame()
+{
+    if (!initialized_)
+    {
+        const int status = initialize();
+        if (status == 0)
+        {
+            std::cout << "Initialized demuxer" << "\n";
+            initialized_ = true;
+        }
+        else
+        {
+            std::cout << "Cannot initialize demuxer, not enough data in the buffer, send more data" << "\n";
+            return -1;
+        }
+    }
 
     // ----
 
@@ -187,7 +200,7 @@ void demuxer::read_frame()
     // ----
 
     /* read frames from the file */
-    while (av_read_frame(fmt_ctx, pkt_) >= 0)
+    while (av_read_frame(fmt_ctx_, pkt_) >= 0)
     {
         // check if the packet belongs to a stream we are interested in, otherwise
         // skip it
@@ -241,12 +254,15 @@ void demuxer::read_frame()
             fmt, n_channels, audio_dec_ctx_->sample_rate,
             audio_dst_name_);
     }
+
+    return 0;
 }
 
 demuxer::~demuxer()
 {
     std::cout << "Demuxer destructor called" << "\n";
-    delete[] buffer_;
+    // TODO: figure out how to delete the buffer given that read_packet shifts it
+    // delete[] source_buffer_.ptr;
 }
 
 int demuxer::read_packet(void* opaque, uint8_t* dst_buffer, const int dst_buffer_size)

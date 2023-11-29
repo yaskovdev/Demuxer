@@ -7,6 +7,12 @@ extern "C" {
 #include <libavutil/samplefmt.h>
 }
 
+struct buffer_data
+{
+    uint8_t* ptr;
+    size_t size;
+};
+
 class demuxer
 {
 public:
@@ -14,13 +20,14 @@ public:
 
     void write_packet(const uint8_t* packet, int packet_length);
 
-    void read_frame();
+    int read_frame();
 
     ~demuxer();
 
 private:
-    uint8_t* buffer_;
-    size_t buffer_size_;
+    bool initialized_;
+    AVFormatContext* fmt_ctx_;
+    buffer_data source_buffer_;
     AVFrame* frame_;
     AVPacket* pkt_;
     AVStream *video_stream_;
@@ -41,6 +48,8 @@ private:
     const char* video_dst_name_;
     bool decoder_needs_packet_;
     int current_stream_index_;
+
+    int initialize();
 
     AVCodecContext* current_context() const;
 
