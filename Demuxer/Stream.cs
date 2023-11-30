@@ -6,21 +6,22 @@ public class Stream
 
     private readonly object _lock = new();
     private readonly byte[] _buffer = new byte[MaxSize];
-    private int _size;
+    private int _buffer_size;
     private int _offset;
 
-    public void Write(byte[] bytes)
+    public void Write(byte[] packet)
     {
         lock (_lock)
         {
-            if (_size + bytes.Length > MaxSize)
+            if (_buffer_size + packet.Length > MaxSize)
             {
                 Monitor.Wait(_lock);
             }
-            Array.Copy(_buffer, _offset, _buffer, 0, _size);
+            Array.Copy(_buffer, _offset, _buffer, 0, _buffer_size - _offset);
+            _buffer_size -= _offset;
             _offset = 0;
-            Array.Copy(bytes, 0, _buffer, _size, bytes.Length);
-            _size += bytes.Length;
+            Array.Copy(packet, 0, _buffer, _buffer_size, packet.Length);
+            _buffer_size += packet.Length;
             Monitor.PulseAll(_lock);
         }
     }
@@ -29,16 +30,16 @@ public class Stream
     {
         lock (_lock)
         {
-            if (_size - _offset == 0)
+            if (_buffer_size - _offset == 0)
             {
-                Monitor.Wait(_lock); // TODO: do not wait if disposed
+                Monitor.Wait(_lock); // TODO: do not wait if nobody is writing
             }
-            var numberOfBytesToCopy = Math.Min(_size - _offset, size);
+            var numberOfBytesToCopy = Math.Min(_buffer_size - _offset, size);
             var result = new byte[numberOfBytesToCopy];
             Array.Copy(_buffer, _offset, result, 0, numberOfBytesToCopy);
             _offset += numberOfBytesToCopy;
             Monitor.PulseAll(_lock);
-            // Console.WriteLine($"Remaining buffer size is {_size - _offset}");
+            Console.WriteLine($"Requested {size} bytes, returning {result.Length}");
             return result;
         }
     }
