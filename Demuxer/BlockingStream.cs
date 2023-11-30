@@ -1,6 +1,6 @@
 ﻿namespace Demuxer;
 
-public class Stream
+public class BlockingStream
 {
     private const int MaxSize = 512 * 1024 * 1024;
 

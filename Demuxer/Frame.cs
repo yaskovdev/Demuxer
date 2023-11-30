@@ -6,12 +6,12 @@ public class Frame
 
     public long Timestamp { get; }
 
-    public byte[] Data { get; }
+    public ArraySegment<byte> Data { get; }
 
-    public Frame(FrameType type, long timestamp, byte[] data)
+    public Frame(FrameType type, ulong size, long timestamp, byte[] data)
     {
         Type = type;
         Timestamp = timestamp;
-        Data = data;
+        Data = new ArraySegment<byte>(data, 0, (int)size);
     }
 }

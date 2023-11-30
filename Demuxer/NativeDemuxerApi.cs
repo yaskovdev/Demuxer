@@ -8,6 +8,8 @@ public struct FrameMetadata
 {
     public FrameType Type { get; }
 
+    public ulong Size { get; }
+
     public long Timestamp { get; }
 }
 

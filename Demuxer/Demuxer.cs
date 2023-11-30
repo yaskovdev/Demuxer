@@ -5,7 +5,9 @@ using System.Runtime.InteropServices;
 
 public class Demuxer : IDemuxer, IDisposable
 {
-    private readonly Stream _stream = new();
+    private static readonly Frame EmptyFrame = new(FrameType.Video, 0, 0, Array.Empty<byte>());
+
+    private readonly BlockingStream _stream = new();
 
     [SuppressMessage("ReSharper", "PrivateFieldCanBeConvertedToLocalVariable", Justification = "The callback scope must be bigger than the scope of the native demuxer")]
     private readonly Callback _callback;
@@ -31,7 +33,7 @@ public class Demuxer : IDemuxer, IDisposable
         var data = new byte[1920 * 1080 * 3 / 2]; // TODO: check the size and do not hardcode
         var metadata = new FrameMetadata();
         var status = NativeDemuxerApi.ReadFrame(_demuxer, data, ref metadata);
-        return status == 0 ? new Frame(metadata.Type, metadata.Timestamp, data) : new Frame(FrameType.Audio, 0, Array.Empty<byte>());
+        return status == 0 ? new Frame(metadata.Type, metadata.Size, metadata.Timestamp, data) : EmptyFrame;
     }
 
     public void Dispose()

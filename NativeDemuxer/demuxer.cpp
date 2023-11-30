@@ -164,6 +164,7 @@ int demuxer::read_frame(uint8_t* decoded_data, frame_metadata* metadata)
                 exit(1);
             }
             metadata->type = 0;
+            metadata->size = buffer_size;
             metadata->timestamp = frame_->pts;
             return 0;
         }
@@ -172,6 +173,7 @@ int demuxer::read_frame(uint8_t* decoded_data, frame_metadata* metadata)
             const size_t unpadded_linesize = frame_->nb_samples * av_get_bytes_per_sample(static_cast<AVSampleFormat>(frame_->format));
             memcpy(decoded_data, frame_->extended_data[0], unpadded_linesize);
             metadata->type = 1;
+            metadata->size = unpadded_linesize;
             metadata->timestamp = frame_->pts;
             return 0;
         }
