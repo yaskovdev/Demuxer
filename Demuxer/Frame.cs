@@ -4,11 +4,11 @@ public class Frame
 {
     public FrameType Type { get; }
 
-    public long Timestamp { get; }
+    public TimeSpan Timestamp { get; }
 
     public ArraySegment<byte> Data { get; }
 
-    public Frame(FrameType type, ulong size, long timestamp, byte[] data)
+    public Frame(FrameType type, ulong size, TimeSpan timestamp, byte[] data)
     {
         Type = type;
         Timestamp = timestamp;

@@ -39,7 +39,6 @@ public class BlockingStream
             Array.Copy(_buffer, _offset, result, 0, numberOfBytesToCopy);
             _offset += numberOfBytesToCopy;
             Monitor.PulseAll(_lock);
-            Console.WriteLine($"Requested {size} bytes, returning {result.Length}");
             return result;
         }
     }
