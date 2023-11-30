@@ -1,7 +1,7 @@
 # Demuxer
 
 ```shell
-ffplay -f rawvideo -video_size 1920x1080 c:\dev\experiment3\capture.video
+ffplay -f rawvideo -video_size 1920x1080 -framerate 16 c:\dev\experiment3\capture.video
 ```
 
 ```shell

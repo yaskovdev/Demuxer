@@ -1,13 +1,15 @@
 ﻿namespace Demuxer;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 public class Demuxer : IDemuxer, IDisposable
 {
     private readonly Stream _stream = new();
 
-    // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
+    [SuppressMessage("ReSharper", "PrivateFieldCanBeConvertedToLocalVariable", Justification = "The callback scope must be bigger than the scope of the native demuxer")]
     private readonly Callback _callback;
+
     private readonly IntPtr _demuxer;
 
     public Demuxer()
@@ -29,7 +31,7 @@ public class Demuxer : IDemuxer, IDisposable
         var data = new byte[1920 * 1080 * 3 / 2]; // TODO: check the size and do not hardcode
         var metadata = new FrameMetadata();
         var status = NativeDemuxerApi.ReadFrame(_demuxer, data, ref metadata);
-        return status == 0 ? new Frame(metadata.type, metadata.timestamp, data) : new Frame(FrameType.Audio, 0, Array.Empty<byte>());
+        return status == 0 ? new Frame(metadata.Type, metadata.Timestamp, data) : new Frame(FrameType.Audio, 0, Array.Empty<byte>());
     }
 
     public void Dispose()

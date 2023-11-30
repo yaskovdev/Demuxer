@@ -4,11 +4,11 @@ public class Frame
 {
     public FrameType Type { get; }
 
-    public int Timestamp { get; }
+    public long Timestamp { get; }
 
     public byte[] Data { get; }
 
-    public Frame(FrameType type, int timestamp, byte[] data)
+    public Frame(FrameType type, long timestamp, byte[] data)
     {
         Type = type;
         Timestamp = timestamp;

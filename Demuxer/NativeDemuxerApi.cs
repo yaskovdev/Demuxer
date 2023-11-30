@@ -1,14 +1,14 @@
 ﻿namespace Demuxer;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
-// ReSharper disable once UnassignedGetOnlyAutoProperty
-[StructLayout(LayoutKind.Sequential)]
+[SuppressMessage("ReSharper", "UnassignedGetOnlyAutoProperty", Justification = "Set up in native code")]
 public struct FrameMetadata
 {
-    public FrameType type;
+    public FrameType Type { get; }
 
-    public int timestamp;
+    public long Timestamp { get; }
 }
 
 internal static class NativeDemuxerApi
