@@ -111,7 +111,7 @@ int demuxer::initialize()
     return 0;
 }
 
-int demuxer::read_frame(uint8_t* decoded_data, int* is_video)
+int demuxer::read_frame(uint8_t* decoded_data, frame_metadata* metadata)
 {
     if (!initialized_)
     {
@@ -163,14 +163,16 @@ int demuxer::read_frame(uint8_t* decoded_data, int* is_video)
             {
                 exit(1);
             }
-            *is_video = 1;
+            metadata->type = 0;
+            metadata->timestamp = frame_->pts;
             return 0;
         }
         else
         {
             const size_t unpadded_linesize = frame_->nb_samples * av_get_bytes_per_sample(static_cast<AVSampleFormat>(frame_->format));
             memcpy(decoded_data, frame_->extended_data[0], unpadded_linesize);
-            *is_video = 0;
+            metadata->type = 1;
+            metadata->timestamp = frame_->pts;
             return 0;
         }
     }
@@ -184,8 +186,7 @@ demuxer::~demuxer()
 int demuxer::read_packet(void* opaque, uint8_t* dst_buffer, const int dst_buffer_size)
 {
     const callback* c = static_cast<callback*>(opaque);
-    const int res = (*c)(dst_buffer, dst_buffer_size);
-    return res == -1 ? AVERROR_EOF : res;
+    return (*c)(dst_buffer, dst_buffer_size);
 }
 
 int demuxer::open_codec_context(int* stream_idx, AVCodecContext** dec_ctx, AVFormatContext* fmt_ctx, AVMediaType type)

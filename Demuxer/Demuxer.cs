@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 public class Demuxer : IDemuxer, IDisposable
 {
-    private readonly Stream _stream = new Stream();
+    private readonly Stream _stream = new();
 
     // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
     private readonly Callback _callback;
@@ -27,9 +27,9 @@ public class Demuxer : IDemuxer, IDisposable
     public Frame ReadFrame()
     {
         var data = new byte[1920 * 1080 * 3 / 2]; // TODO: check the size and do not hardcode
-        var isVideo = 0;
-        var status = NativeDemuxerApi.ReadFrame(_demuxer, data, ref isVideo);
-        return status == 0 ? new Frame(isVideo == 0 ? FrameType.Audio : FrameType.Video, data) : new Frame(FrameType.Audio, Array.Empty<byte>());
+        var metadata = new FrameMetadata();
+        var status = NativeDemuxerApi.ReadFrame(_demuxer, data, ref metadata);
+        return status == 0 ? new Frame(metadata.type, metadata.timestamp, data) : new Frame(FrameType.Audio, 0, Array.Empty<byte>());
     }
 
     public void Dispose()

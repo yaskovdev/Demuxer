@@ -8,9 +8,9 @@ demuxer* create_demuxer(const callback callback)
     return new demuxer(callback);
 }
 
-int read_frame(demuxer* demuxer, uint8_t* decoded_data, int* is_video)
+int read_frame(demuxer* demuxer, uint8_t* decoded_data, frame_metadata* metadata)
 {
-    return demuxer->read_frame(decoded_data, is_video);
+    return demuxer->read_frame(decoded_data, metadata);
 }
 
 void delete_demuxer(const demuxer* demuxer)

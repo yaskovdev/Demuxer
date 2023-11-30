@@ -20,7 +20,7 @@ internal static class Program
             {
                 break;
             }
-            Console.WriteLine($"Extracted frame of type {frame.Type}");
+            Console.WriteLine($"Extracted frame of type {frame.Type} with timestamp {frame.Timestamp}");
             if (frame.Type == FrameType.Video)
             {
                 await fileStream.WriteAsync(frame.Data);

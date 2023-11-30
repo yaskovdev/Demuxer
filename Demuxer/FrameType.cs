@@ -2,6 +2,6 @@
 
 public enum FrameType
 {
-    Audio,
-    Video
+    Video,
+    Audio
 }

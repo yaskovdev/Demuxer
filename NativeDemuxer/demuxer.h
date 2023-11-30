@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include <cstdint>
 
-#include "callback.h"
+#include "common.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -22,7 +22,7 @@ class demuxer
 public:
     demuxer(callback callback);
 
-    int read_frame(uint8_t* decoded_data, int* is_video);
+    int read_frame(uint8_t* decoded_data, frame_metadata* metadata);
 
     ~demuxer();
 
