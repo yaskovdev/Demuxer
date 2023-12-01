@@ -2,9 +2,9 @@
 
 public class BrowserSimulator
 {
-    private readonly Demuxer _demuxer;
+    private readonly IDemuxer _demuxer;
 
-    public BrowserSimulator(Demuxer demuxer)
+    public BrowserSimulator(IDemuxer demuxer)
     {
         _demuxer = demuxer;
     }
