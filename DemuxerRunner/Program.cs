@@ -1,13 +1,17 @@
-﻿namespace Demuxer;
+﻿namespace DemuxerRunner;
+
+using System.Runtime.InteropServices;
+using Demuxer;
 
 internal static class Program
 {
     public static async Task Main()
     {
-        using var demuxer = new Demuxer();
+        var buffer = new BlockingCircularBuffer(512 * 1024 * 1024);
+        using var demuxer = new Demuxer(buffer);
         var producer = new Thread(() =>
         {
-            var simulator = new BrowserSimulator(demuxer);
+            var simulator = new BrowserSimulator(buffer);
             simulator.StartProducingMedia();
         });
         producer.Start();
@@ -17,17 +21,19 @@ internal static class Program
         while (true)
         {
             var frame = demuxer.ReadFrame();
-            if (frame.Data.Count == 0)
+            if (frame.Data == IntPtr.Zero)
             {
                 break;
             }
-            Console.WriteLine($"Extracted frame of type {frame.Type} with size {frame.Data.Count} and timestamp {frame.Timestamp}");
-            await PickStreamFor(frame, outputVideoStream, outputAudioStream).WriteAsync(frame.Data);
+            Console.WriteLine($"Extracted frame of type {frame.Type} with size {frame.Size} and timestamp {frame.Timestamp}");
+            var data = new byte[frame.Size];
+            Marshal.Copy(frame.Data, data, 0, data.Length);
+            await PickStreamFor(frame, outputVideoStream, outputAudioStream).WriteAsync(data);
         }
         producer.Join();
     }
 
-    private static Stream PickStreamFor(Frame frame, Stream videoStream, Stream audioStream) =>
+    private static Stream PickStreamFor(AbstractFrame frame, Stream videoStream, Stream audioStream) =>
         frame.Type switch
         {
             FrameType.Video => videoStream,

@@ -1,17 +1,18 @@
 ﻿namespace Demuxer;
 
-public class Frame
+using System.Runtime.InteropServices;
+
+public class Frame : AbstractFrame
 {
-    public FrameType Type { get; }
-
-    public TimeSpan Timestamp { get; }
-
-    public ArraySegment<byte> Data { get; }
-
-    public Frame(FrameType type, ulong size, TimeSpan timestamp, byte[] data)
+    public Frame(FrameType type, IntPtr data, ulong size, TimeSpan timestamp) : base(type, data, size, timestamp)
     {
-        Type = type;
-        Timestamp = timestamp;
-        Data = new ArraySegment<byte>(data, 0, (int)size);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            Marshal.FreeHGlobal(Data);
+        }
     }
 }

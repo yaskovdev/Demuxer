@@ -18,6 +18,19 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="common.h" />
+    <ClInclude Include="demuxer.h" />
+    <ClInclude Include="demuxer_api.h" />
+    <ClInclude Include="resampler.h" />
+    <ClInclude Include="resampler_api.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="demuxer.cpp" />
+    <ClCompile Include="demuxer_api.cpp" />
+    <ClCompile Include="resampler.cpp" />
+    <ClCompile Include="resampler_api.cpp" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{0266CB48-3B98-4432-AB6B-ECBDAC445A42}</ProjectGuid>
@@ -153,15 +166,6 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="api.cpp" />
-    <ClCompile Include="demuxer.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="api.h" />
-    <ClInclude Include="common.h" />
-    <ClInclude Include="demuxer.h" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="..\packages\FFmpeg.Stable.6.1.0\build\native\FFmpeg.Stable.targets" Condition="Exists('..\packages\FFmpeg.Stable.6.1.0\build\native\FFmpeg.Stable.targets')" />

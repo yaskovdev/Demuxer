@@ -19,14 +19,6 @@ struct buffer_data
 
 class demuxer
 {
-public:
-    demuxer(callback callback);
-
-    int read_frame(uint8_t* decoded_data, frame_metadata* metadata);
-
-    ~demuxer();
-
-private:
     bool initialized_;
     callback callback_;
     AVFormatContext* fmt_ctx_;
@@ -46,11 +38,19 @@ private:
     bool decoder_needs_packet_;
     int current_stream_index_;
 
-    int initialize();
+    void initialize();
 
     AVCodecContext* current_context() const;
 
     static int read_packet(void* opaque, uint8_t* dst_buffer, int dst_buffer_size);
 
-    static int open_codec_context(int* stream_idx, AVCodecContext** dec_ctx, AVFormatContext* fmt_ctx, AVMediaType type);
+    static void open_decoder_context(int* stream_idx, AVCodecContext** decoder_context, AVFormatContext* fmt_ctx, AVMediaType type);
+
+public:
+    demuxer(callback callback);
+
+    /**
+     * \brief May return nullptr if end of stream reached.
+     */
+    uint8_t* read_frame(frame_metadata* metadata);
 };

@@ -10,10 +10,10 @@ nuget restore $SolutionDirectory
 msbuild $SolutionDirectory /nr:false /p:Configuration=Release /p:Platform=x64 /t:Demuxer:Rebuild
 
 $Now = Get-Date -Format FileDateTimeUniversal
-dotnet pack $SolutionDirectory\Demuxer\Demuxer.csproj -c Release -p:Platform=x64 -p:VersionPrefix=$Version -p:VersionSuffix="local-$Now"
+dotnet pack $SolutionDirectory\Demuxer\Demuxer.csproj -c Release -p:Platform=x64 -p:VersionPrefix=$Version -p:VersionSuffix="$Now"
 
-Copy-Item $SolutionDirectory\Demuxer\bin\x64\Release\Demuxer.$Version-local-$Now.nupkg $env:OFFLINE_PACKAGES_DIRECTORY
+Copy-Item $SolutionDirectory\Demuxer\bin\x64\Release\Demuxer.$Version-$Now.nupkg $env:OFFLINE_PACKAGES_DIRECTORY
 
 Write-Output "Successfully copied the NuGet package to $env:OFFLINE_PACKAGES_DIRECTORY"
 
-dotnet nuget push "$SolutionDirectory\Demuxer\bin\x64\Release\Demuxer.$Version-local-$Now.nupkg" --api-key $ApiKey --source "github"
+dotnet nuget push "$SolutionDirectory\Demuxer\bin\x64\Release\Demuxer.$Version-$Now.nupkg" --api-key $ApiKey --source "github"
