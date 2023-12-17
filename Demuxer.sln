@@ -1,6 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Demuxer", "Demuxer\Demuxer.csproj", "{05152BCD-07D1-46E4-91FF-A1203FAEE661}"
+	ProjectSection(ProjectDependencies) = postProject
+		{0266CB48-3B98-4432-AB6B-ECBDAC445A42} = {0266CB48-3B98-4432-AB6B-ECBDAC445A42}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NativeDemuxer", "NativeDemuxer\NativeDemuxer.vcxproj", "{0266CB48-3B98-4432-AB6B-ECBDAC445A42}"
 EndProject
